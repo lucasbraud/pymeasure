@@ -370,19 +370,130 @@ class TopticaDLCPro(Instrument):
         """
         self._set_parameter(param_name, value)
 
-    def get_all_parameters(self):
+    def get_all_parameters(self, use_dynamic_discovery=True):
         """
         Get all relevant laser parameters as a dictionary.
-
+        
+        :param use_dynamic_discovery: If True, dynamically discover all available parameters.
+                                    If False, use predefined parameter lists.
         :return: Dictionary containing all laser parameters with their values.
                 Failed parameter retrievals are stored with their error messages.
         """
         if not self.client:
             raise ConnectionError("Connection not open")
+        
+        # Get parameter list
+        if use_dynamic_discovery:
+            try:
+                param_names = self.get_all_supported_parameters()
+            except Exception as e:
+                log.warning(f"Dynamic parameter discovery failed: {e}. Using default list.")
+                param_names = self._get_default_parameter_list()
+        else:
+            param_names = self._get_default_parameter_list()
+        
+        # Retrieve all parameters
+        parameters = {}
+        for param in param_names:
+            try:
+                parameters[param] = self.client.get(param)
+            except self._decop_error as error:
+                parameters[param] = f"ERROR: {error}"
+        
+        # Add metadata
+        parameters["_metadata"] = {
+            "laser_type": self.laser_type,
+            "ip_address": self.ip_address,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "instrument_name": self.name,
+            "parameter_count": len(param_names),
+            "discovery_method": "dynamic" if use_dynamic_discovery else "predefined"
+        }
+        
+        log.info(f"Retrieved {len(param_names)} parameters for {self.laser_type} laser "
+                 f"using {'dynamic' if use_dynamic_discovery else 'predefined'} discovery")
+        return parameters
 
-        # Get parameter list based on laser type
+    def get_all_supported_parameters(self):
+        """
+        Get all supported parameters from the laser by testing parameter patterns.
+        
+        :return: List of all parameter names that can be read from the laser
+        """
+        if not self.client:
+            raise ConnectionError("Connection not open")
+        
+        try:
+            # Start with the enhanced parameter list as a base
+            candidate_params = self._get_enhanced_parameter_list()
+            
+            # Test each parameter to see if it's actually available
+            available_params = []
+            for param in candidate_params:
+                try:
+                    # Try to read the parameter
+                    self.client.get(param)
+                    available_params.append(param)
+                except self._decop_error:
+                    # Parameter not available, skip it
+                    continue
+                except Exception:
+                    # Other error, skip it
+                    continue
+            
+            log.info(f"Found {len(available_params)} available parameters "
+                     f"out of {len(candidate_params)} tested")
+            return available_params
+            
+        except Exception as e:
+            log.error(f"Error during parameter discovery: {e}")
+            # Fall back to default list
+            return self._get_default_parameter_list()
+    
+    def _get_enhanced_parameter_list(self):
+        """
+        Get an enhanced parameter list that includes more parameters than the basic defaults.
+        
+        :return: Enhanced list of parameter names
+        """
+        base_params = self._get_default_parameter_list()
+        
+        # Add additional common parameters that might be available
+        additional_params = [
+            "system:uptime",
+            "system:serial-number",
+            "system:model",
+            "fw:version",
+            "cc1:board-temp",
+            "tc1:board-temp"
+        ]
+        
         if self.laser_type == "CTL":
-            param_names = [
+            additional_params.extend([
+                "laser1:dl:tc:temp-act",
+                "laser1:dl:tc:temp-set",
+                "laser1:ctl:mode",
+                "laser1:ctl:state"
+            ])
+        elif self.laser_type == "TA":
+            additional_params.extend([
+                "laser1:amp:photodiode",
+                "laser1:amp:state"
+            ])
+        
+        # Combine and deduplicate
+        all_params = list(set(base_params + additional_params))
+        
+        return sorted(all_params)
+
+    def _get_default_parameter_list(self):
+        """
+        Get the default parameter list based on laser type (fallback method).
+
+        :return: List of default parameter names for the detected laser type
+        """
+        if self.laser_type == "CTL":
+            return [
                 "laser1:ctl:wavelength-set",
                 "laser1:ctl:wavelength-act",
                 "laser1:scan:offset",
@@ -397,7 +508,7 @@ class TopticaDLCPro(Instrument):
                 "emission"
             ]
         elif self.laser_type == "TA":
-            param_names = [
+            return [
                 "ampcc1:channel1:current-set",
                 "ampcc1:channel1:current-act",
                 "laser1:amp:tc:temp-act",
@@ -409,26 +520,7 @@ class TopticaDLCPro(Instrument):
                 "emission"
             ]
         else:
-            param_names = ["laser1:type", "emission"]
-
-        # Retrieve all parameters
-        parameters = {}
-        for param in param_names:
-            try:
-                parameters[param] = self.client.get(param)
-            except self._decop_error as error:
-                parameters[param] = f"ERROR: {error}"
-
-        # Add metadata
-        parameters["_metadata"] = {
-            "laser_type": self.laser_type,
-            "ip_address": self.ip_address,
-            "timestamp": datetime.datetime.now().isoformat(),
-            "instrument_name": self.name
-        }
-
-        log.info(f"Retrieved {len(param_names)} parameters for {self.laser_type} laser")
-        return parameters
+            return ["laser1:type", "emission"]
 
     def shutdown(self):
         """
