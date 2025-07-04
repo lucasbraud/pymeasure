@@ -26,7 +26,11 @@ from .siglent_spd1168x import SPD1168X
 from .siglent_spd1305x import SPD1305X
 from .siglent_sds1072cml import SDS1072CML
 <<<<<<< HEAD
+<<<<<<< HEAD
 from .siglent_sds1000xhd import SDS1000XHD
 =======
 from .siglent_sva1000x import SVA1000X
 >>>>>>> 7a281585 (update init file)
+=======
+from .siglent_sdg1032x import SDG1032X
+>>>>>>> ea6ac5cd (add AWG basic methods)
