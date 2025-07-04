@@ -23,3 +23,4 @@
 #
 
 from .ibeamsmart import IBeamSmart
+from .dlc_pro import TopticaDLCPro
