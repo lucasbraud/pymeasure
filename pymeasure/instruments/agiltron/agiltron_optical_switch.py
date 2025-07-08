@@ -23,6 +23,7 @@
 #
 
 import logging
+from pyvisa.constants import StopBits, Parity
 
 from pymeasure.instruments import Instrument
 
@@ -64,8 +65,8 @@ class AgiltronOpticalSwitch(Instrument):
         serial_kwargs = {
             'baud_rate': 9600,
             'data_bits': 8,
-            'stop_bits': 1,
-            'parity': 'none',
+            'stop_bits': StopBits.one,  # Use enum for stop bits
+            'parity': Parity.none,      # Use enum for parity
             'read_termination': '\r\n',
             'write_termination': '\r\n',
             'timeout': 2000,
@@ -156,7 +157,7 @@ class AgiltronOpticalSwitch(Instrument):
             elif value == 2:
                 msg = bytes([0x01, 0x12, 0x00, 0x02])
 
-            self.adapter.write_raw(msg)
+            self.adapter.write_bytes(msg)  # Use write_bytes instead of write_raw
             self._current_channel = value
             log.info(f"Switched to channel {value}")
 
