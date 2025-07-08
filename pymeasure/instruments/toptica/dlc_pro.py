@@ -528,10 +528,6 @@ class TopticaDLCPro(Instrument):
         """
         try:
             if self.client:
-                # Disable emission for safety
-                self.emission = False
-                log.info("Emission disabled")
-
                 # Close the connection
                 self.client.close()
                 log.info(f"Connection to {self.ip_address} closed")
